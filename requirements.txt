@@ -1,0 +1,6 @@
+torch
+lightning
+torchmetrics
+sentencepiece
+pandas
+numpy
