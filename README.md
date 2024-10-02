@@ -1,6 +1,7 @@
-# Neural Machine Translation with Transformer
+# Translation with Transformer
 
-This project implements a neural machine translation system using a Transformer model. It's designed for translating between two languages, with a focus on English to French translation.
+This project implements a translation system using a Transformer model. It's designed for translating between two
+languages, with a focus on English to French translation. As of now it produces some French sounding sentences but not very good.
 
 ## Features
 
@@ -32,11 +33,14 @@ Main dependencies include:
 
 - `main.py`: Entry point for running inference with a trained model
 - `train.py`: Script for training the Transformer model
-- `model.py`: Implementation of the Transformer architecture
-- `dataset.py`: Data loading and preprocessing utilities
-- `lightning_module.py`: PyTorch Lightning module for training
-- `sampler.py`: Sampling strategies for inference
+- `src/`:
+  - `model.py`: Implementation of the Transformer architecture
+  - `dataset.py`: Data loading and preprocessing utilities
+  - `lightning_module.py`: PyTorch Lightning module for training
+  - `sampler.py`: Sampling strategies for inference (including greedy, random, and beam search)
 - `config.py`: Configuration settings for the project
+- `requirements.txt`: List of required Python packages
+- `README.md`: Project documentation (this file)
 
 ## Usage
 
@@ -63,7 +67,7 @@ This will start an interactive session where you can input sentences for transla
 
 ## Limitations
 
-- The amount of data used for training is limited, so the model may not perform well at all.
+- The amount of data used for training is limited ($2^{17}$), so the model may not perform well at all.
 But I guess what matters to
   me is it's more a debugging exercise and to get a better understanding of the concepts.
 - Sampling strategy is off especially if it uses some greedy like policy.
