@@ -81,7 +81,8 @@ def main(args):
         strategy='auto',
         log_every_n_steps=5,
         gradient_clip_val=1.0,
-        accumulate_grad_batches=config['grad_accum_steps']
+        accumulate_grad_batches=config['grad_accum_steps'],
+        check_val_every_n_epoch=1
     )
 
     # Fit the model

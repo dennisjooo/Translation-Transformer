@@ -58,7 +58,7 @@ class SelfAttention(nn.Module):
         self.W_v = nn.Linear(n_embed, n_embed, bias=False)
         self.output = nn.Linear(n_embed, n_embed, bias=False)
         
-    def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+    def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         """
         Forward pass of the SelfAttention module.
 
@@ -66,6 +66,7 @@ class SelfAttention(nn.Module):
             q (torch.Tensor): Query tensor of shape (batch_size, seq_len, n_embed).
             k (torch.Tensor): Key tensor of shape (batch_size, seq_len, n_embed).
             v (torch.Tensor): Value tensor of shape (batch_size, seq_len, n_embed).
+            mask (torch.Tensor, optional): Attention mask tensor of shape (batch_size, 1, 1, seq_len). Defaults to None.
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, n_embed).
@@ -82,9 +83,12 @@ class SelfAttention(nn.Module):
         k = self.W_k(k).view(batch_size, -1, self.n_head, self.head_dim).transpose(1, 2)
         v = self.W_v(v).view(batch_size, -1, self.n_head, self.head_dim).transpose(1, 2)
         
-        attention = F.scaled_dot_product_attention(q, k, v, 
-                                                   is_causal=self.is_causal,
-                                                   dropout_p=self.dropout_p if self.training else 0.0)
+        attention = F.scaled_dot_product_attention(
+            q, k, v, 
+            attn_mask=mask,  # Pass the mask to the attention mechanism
+            is_causal=self.is_causal,
+            dropout_p=self.dropout_p if self.training else 0.0
+        )
         
         attention = attention.contiguous().view(batch_size, seq_len, self.n_embed)
         
@@ -138,18 +142,19 @@ class EncoderBlock(nn.Module):
         self.norm2 = nn.LayerNorm(n_embed)
         self.dropout = nn.Dropout(dropout_p)
         
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         """
         Forward pass of the EncoderBlock.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len, n_embed).
+            mask (torch.Tensor, optional): Attention mask tensor of shape (batch_size, 1, 1, seq_len). Defaults to None.
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, n_embed).
         """
         x_norm = self.norm1(x)
-        x = x + self.attn(x_norm, x_norm, x_norm)
+        x = x + self.attn(x_norm, x_norm, x_norm, mask=mask)  # Pass the mask
         x_norm = self.norm2(x)
         x = x + self.mlp(x_norm)
         return self.dropout(x)
@@ -177,19 +182,20 @@ class Encoder(nn.Module):
         self.pe = PositionalEncoding(n_embed, max_len)
         self.embed = nn.Embedding(vocab_size, n_embed)
         
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         """
         Forward pass of the Encoder.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len).
+            mask (torch.Tensor, optional): Attention mask tensor of shape (batch_size, 1, 1, seq_len). Defaults to None.
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, n_embed).
         """
         x = self.pe(self.embed(x))
         for layer in self.layers:
-            x = layer(x)
+            x = layer(x, mask=mask)
         return x
 
 class DecoderBlock(nn.Module):
@@ -213,21 +219,23 @@ class DecoderBlock(nn.Module):
         self.norm3 = nn.LayerNorm(n_embed)
         self.dropout = nn.Dropout(dropout_p)
         
-    def forward(self, x: torch.Tensor, enc_output: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, enc_output: torch.Tensor, src_mask: torch.Tensor = None, trg_mask: torch.Tensor = None) -> torch.Tensor:
         """
         Forward pass of the DecoderBlock.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len, n_embed).
             enc_output (torch.Tensor): Encoder output tensor of shape (batch_size, src_seq_len, n_embed).
+            src_mask (torch.Tensor, optional): Source attention mask tensor of shape (batch_size, 1, 1, src_seq_len). Defaults to None.
+            trg_mask (torch.Tensor, optional): Target attention mask tensor of shape (batch_size, 1, 1, seq_len). Defaults to None.
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, n_embed).
         """
         x_norm = self.norm1(x)
-        x = x + self.attn1(x_norm, x_norm, x_norm)
+        x = x + self.attn1(x_norm, x_norm, x_norm, mask=trg_mask)  # Pass target mask
         x_norm = self.norm2(x)
-        x = x + self.attn2(x_norm, enc_output, enc_output)
+        x = x + self.attn2(x_norm, enc_output, enc_output, mask=src_mask)  # Pass source mask
         x_norm = self.norm3(x)
         x = x + self.mlp(x_norm)
         return self.dropout(x)
@@ -255,20 +263,22 @@ class Decoder(nn.Module):
         self.pe = PositionalEncoding(n_embed, max_len)
         self.embed = nn.Embedding(vocab_size, n_embed)
         
-    def forward(self, x: torch.Tensor, enc_output: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, enc_output: torch.Tensor, src_mask: torch.Tensor = None, trg_mask: torch.Tensor = None) -> torch.Tensor:
         """
         Forward pass of the Decoder.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len).
             enc_output (torch.Tensor): Encoder output tensor of shape (batch_size, src_seq_len, n_embed).
+            src_mask (torch.Tensor, optional): Source attention mask tensor of shape (batch_size, 1, 1, src_seq_len). Defaults to None.
+            trg_mask (torch.Tensor, optional): Target attention mask tensor of shape (batch_size, 1, 1, seq_len). Defaults to None.
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, n_embed).
         """
         x = self.pe(self.embed(x))
         for layer in self.layers:
-            x = layer(x, enc_output)
+            x = layer(x, enc_output, src_mask=src_mask, trg_mask=trg_mask)
         return x
 
 class Transformer(nn.Module):
@@ -306,7 +316,17 @@ class Transformer(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, trg_seq_len, vocab_size).
         """
-        enc_output = self.encoder(src)
-        dec_output = self.decoder(trg, enc_output)
+        # Create source padding mask
+        src_mask = (src != self.pad_idx).unsqueeze(1).unsqueeze(2)  # Shape: (batch_size, 1, 1, src_len)
+
+        # Pass through encoder with source mask
+        enc_output = self.encoder(src, mask=src_mask)
+
+        # Create target padding mask
+        trg_mask = (trg != self.pad_idx).unsqueeze(1).unsqueeze(2)  # Shape: (batch_size, 1, 1, trg_len)
+
+        # Pass through decoder with target and source masks
+        dec_output = self.decoder(trg, enc_output, src_mask=src_mask, trg_mask=trg_mask)
+        
         output = self.output(self.norm(dec_output))
         return output
