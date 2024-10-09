@@ -1,7 +1,7 @@
 import lightning as L
+import math
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 import torchmetrics
 from typing import Tuple, Dict, Any
@@ -127,9 +127,17 @@ class TransformerLightning(L.LightningModule):
         Returns:
             optim.lr_scheduler.CosineAnnealingWarmRestarts: The learning rate scheduler.
         """
-        # Use CosineAnnealingWarmRestarts scheduler
-        scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2)
-        return scheduler
+        def lr_lambda(current_step):
+            # Warmup phase: learning rate increases linearly to 1 (scaling factor)
+            if current_step < self.warmup_steps:
+                return float(current_step) / float(max(1, self.warmup_steps))
+
+            # Cosine annealing phase: learning rate decreases from 1 to 0 (scaling factor)
+            progress = (current_step - self.warmup_steps) / float(max(1, self.total_steps - self.warmup_steps))
+            return max(1e-7, 0.5 * (1.0 + math.cos(math.pi * progress)))
+
+        # Return LambdaLR with the lambda function that scales the base lr
+        return optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
     
     def configure_optimizers(self) -> Dict[str, Any]:
         """
