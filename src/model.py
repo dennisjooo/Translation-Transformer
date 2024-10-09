@@ -155,7 +155,8 @@ class EncoderBlock(nn.Module):
         return self.dropout(x)
 
 class Encoder(nn.Module):
-    def __init__(self, n_embed: int, n_head: int, n_hidden: int, n_layers: int, vocab_size: int, max_len: int, dropout_p: float = 0.1):
+    def __init__(self, n_embed: int, n_head: int, n_hidden: int, n_layers: int, vocab_size: int, 
+                 max_len: int, dropout_p: float = 0.1):
         """
         Initialize the Encoder module.
 
@@ -232,7 +233,8 @@ class DecoderBlock(nn.Module):
         return self.dropout(x)
 
 class Decoder(nn.Module):
-    def __init__(self, n_embed: int, n_head: int, n_hidden: int, n_layers: int, vocab_size: int, max_len: int, dropout_p: float = 0.1):
+    def __init__(self, n_embed: int, n_head: int, n_hidden: int, n_layers: int, vocab_size: int, 
+                 max_len: int, dropout_p: float = 0.1):
         """
         Initialize the Decoder module.
 
@@ -270,7 +272,8 @@ class Decoder(nn.Module):
         return x
 
 class Transformer(nn.Module):
-    def __init__(self, n_embed: int, n_head: int, n_hidden: int, n_layers: int, vocab_size: int, max_len: int, pad_idx: int = 0, dropout_p: float = 0.1):
+    def __init__(self, n_embed: int, n_head: int, n_hidden: int, n_layers: int, vocab_size: int, 
+                 max_len: int, pad_idx: int = 0, dropout_p: float = 0.1):
         """
         Initialize the Transformer module.
 

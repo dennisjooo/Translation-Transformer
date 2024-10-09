@@ -24,7 +24,8 @@ def load_model(model_path: str, device: torch.device) -> Transformer:
     model.eval()
     return model
 
-def load_tokenizers(src_tokenizer_path: str, tgt_tokenizer_path: str) -> Tuple[spm.SentencePieceProcessor, spm.SentencePieceProcessor]:
+def load_tokenizers(src_tokenizer_path: str, 
+                    tgt_tokenizer_path: str) -> Tuple[spm.SentencePieceProcessor, spm.SentencePieceProcessor]:
     """
     Load source and target tokenizers.
 
@@ -72,12 +73,19 @@ def main():
     Main function to run the translation program.
     """
     parser = argparse.ArgumentParser(description="Translate sentences using the trained Transformer model.")
-    parser.add_argument("--model_path", type=str, default="transformer.pth", help="Path to the trained model")
-    parser.add_argument("--src_tokenizer", type=str, default=config["src_tokenizer_path"], help="Path to the source tokenizer")
-    parser.add_argument("--tgt_tokenizer", type=str, default=config["tgt_tokenizer_path"], help="Path to the target tokenizer")
-    parser.add_argument("--max_len", type=int, default=config["max_len"], help="Maximum length of the generated sequence")
-    parser.add_argument("--sampling_strategy", type=str, default="beam", choices=["greedy", "random", "beam"], help="Sampling strategy for translation")
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device to run the model on")
+    parser.add_argument("--model_path", type=str, default="transformer.pth", 
+                        help="Path to the trained model")
+    parser.add_argument("--src_tokenizer", type=str, default=config["src_tokenizer_path"], 
+                        help="Path to the source tokenizer")
+    parser.add_argument("--tgt_tokenizer", type=str, default=config["tgt_tokenizer_path"], 
+                        help="Path to the target tokenizer")
+    parser.add_argument("--max_len", type=int, default=config["max_len"], 
+                        help="Maximum length of the generated sequence")
+    parser.add_argument("--sampling_strategy", type=str, default="beam", 
+                        choices=["greedy", "random", "beam"], help="Sampling strategy for translation")
+    parser.add_argument("--device", type=str, 
+                        default="cuda" if torch.cuda.is_available() else "cpu", 
+                        help="Device to run the model on")
     args = parser.parse_args()
 
     # Load model and tokenizers
@@ -97,7 +105,8 @@ def main():
         if sentence.lower() == 'quit':
             break
 
-        translation = translate(model, sampler, src_tokenizer, tgt_tokenizer, sentence, device, args.max_len, args.sampling_strategy)
+        translation = translate(sampler, src_tokenizer, tgt_tokenizer, sentence, device, 
+                                args.sampling_strategy)
         print(f"Translation: {translation}")
 
 if __name__ == "__main__":

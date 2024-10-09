@@ -50,7 +50,8 @@ class TranslateDataset(Dataset):
             idx (int): Index of the item to retrieve.
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Source sequence, target input sequence, and target output sequence.
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Source sequence, target input sequence, 
+            and target output sequence.
         """
         X_src = self.src_tokenizer.encode(self.data.iloc[idx]['src'])[:self.max_len]
         tgt = self.tgt_tokenizer.encode(self.data.iloc[idx]['tgt'])[:self.max_len - 1] 
