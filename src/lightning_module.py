@@ -117,7 +117,7 @@ class TransformerLightning(L.LightningModule):
         self.log("val_acc", self.val_acc, on_step=True, on_epoch=True, prog_bar=True)
         return loss
     
-    def get_lr_scheduler(self, optimizer: optim.Optimizer) -> optim.lr_scheduler.CosineAnnealingWarmRestarts:
+    def get_lr_scheduler(self, optimizer: optim.Optimizer) -> optim.lr_scheduler.LambdaLR:
         """
         Get the learning rate scheduler.
 
@@ -125,7 +125,7 @@ class TransformerLightning(L.LightningModule):
             optimizer (optim.Optimizer): The optimizer to use with the scheduler.
 
         Returns:
-            optim.lr_scheduler.CosineAnnealingWarmRestarts: The learning rate scheduler.
+            optim.lr_scheduler.LambdaLR The learning rate scheduler.
         """
         def lr_lambda(current_step):
             # Warmup phase: learning rate increases linearly to 1 (scaling factor)
