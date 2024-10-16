@@ -148,4 +148,4 @@ class TransformerLightning(L.LightningModule):
         """
         optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, betas=(0.9, 0.98), weight_decay=self.lambda_val)
         scheduler = self.get_lr_scheduler(optimizer)
-        return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "interval": "epoch"}}
+        return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "interval": "step"}}

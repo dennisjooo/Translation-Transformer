@@ -12,16 +12,16 @@ config = {
     "n_embed": 1024,
     "n_head": 16,
     "n_hidden": 1024 * 4,
-    "n_layers": 3,
-    "dropout_p": 0.1,
+    "n_layers": 4,
+    "dropout_p": 0.15,
     
     # Training parameters
     "batch_size": 16,
     "num_workers": 2,
     "lr": 2e-4,
     "padding_value": 0,
-    "max_epochs": 55,
+    "max_epochs": 50,
     "grad_accum_steps": 4,
-    "lambda_val": 1e-3,
+    "lambda_val": 1e-4,
     "early_stopping_patience": 5
 }
