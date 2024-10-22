@@ -38,9 +38,15 @@ Main dependencies include:
   - `dataset.py`: Data loading and preprocessing utilities
   - `lightning_module.py`: PyTorch Lightning module for training
   - `sampler.py`: Sampling strategies for inference (including greedy, random, and beam search)
+- `tokenizer/`:
+  - `en_tokenizer.vocab`: English vocabulary file for SentencePiece tokenizer
+  - `en_tokenizer.model`: English tokenizer model file for SentencePiece tokenizer
+  - `fr_tokenizer.vocab`: French vocabulary file for SentencePiece tokenizer
+  - `fr_tokenizer.model`: French tokenizer model file for SentencePiece tokenizer
 - `config.py`: Configuration settings for the project
 - `requirements.txt`: List of required Python packages
 - `README.md`: Project documentation (this file)
+- `.gitignore`: Specifies intentionally untracked files to ignore
 
 ## Usage
 
