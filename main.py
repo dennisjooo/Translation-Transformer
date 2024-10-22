@@ -19,7 +19,7 @@ def load_model(model_path: str, device: torch.device) -> Transformer:
     """
     model = Transformer(config["n_embed"], config["n_head"], config["n_hidden"], config["n_layers"],
                         config["max_vocab"], config["max_len"], config["padding_value"], config["dropout_p"])
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     model.to(device)
     model.eval()
     return model
