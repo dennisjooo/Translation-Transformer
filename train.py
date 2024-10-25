@@ -1,15 +1,22 @@
 import os
 import argparse
+import datetime
 import lightning as L
 import torch
 import torch.nn as nn
+import wandb
+
+from dotenv import load_dotenv
 from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint
+from lightning.pytorch.loggers import WandbLogger
 
 from config import config
 from src.dataset import DataModule
 from src.lightning_module import TransformerLightning
 from src.model import Transformer
 from src.sampler import SamplerCallback
+
+load_dotenv()
 
 def main(args):
     # If a folder called tokenizer does not exist, create it
@@ -46,6 +53,13 @@ def main(args):
                              config["max_len"], config["num_workers"], config["split_size"],
                              config["src_tokenizer_path"], config["tgt_tokenizer_path"])
     data_module.prepare_data(max_data=config['max_data'])
+    
+    # Login to wandb
+    wandb.login(key=os.getenv("WANDB_KEY"))
+
+    # Create the WandbLogger
+    wandb_logger = WandbLogger(project="Translation Transformer", 
+                            version=datetime.now().strftime("%Y-%m-%d_%H_%M_%S"))
 
     # Setup model checkpointing
     checkpoint_callback = ModelCheckpoint(
@@ -82,7 +96,10 @@ def main(args):
         log_every_n_steps=5,
         gradient_clip_val=1.0,
         accumulate_grad_batches=config['grad_accum_steps'],
-        check_val_every_n_epoch=1
+        check_val_every_n_epoch=1,
+        precision=16,
+        max_time=datetime.timedelta(hours=12),
+        logger=wandb_logger
     )
 
     # Fit the model

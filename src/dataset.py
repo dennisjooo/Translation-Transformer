@@ -63,7 +63,8 @@ class TranslateDataset(Dataset):
                 torch.tensor(X_tgt).long(), 
                 torch.tensor(y_tgt).long())
     
-    def collate_fn(self, batch: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def collate_fn(self, 
+                   batch: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Collate function to create batches.
 
@@ -203,23 +204,28 @@ class DataModule(L.LightningDataModule):
         """
         tokenizer_path = tokenizer_path.split('.')[0]
         
-        with open('tmp.txt', 'w', encoding='utf-8') as f:
-            f.write('\n'.join(text_list))
+        # Temporary file to write the string to
+        with open('tmp.txt', 'w') as f:
+            # Write the data to the file in chunks of 5 entries per line
+            for i in range(0, len(text_list), 5):
+                chunk = text_list[i:i+5]
+                f.write('\t'.join(chunk.astype(str)) + '\n')
             
+        # Train the tokenizer
         spm.SentencePieceTrainer.train(input='tmp.txt', model_prefix=tokenizer_path, 
                                        vocab_size=self.max_vocab, model_type='bpe',
                                        bos_id=1, eos_id=2, pad_id=0, unk_id=3,
-                                       normalization_rule_name="identity",
+                                       bos_piece='<s>', eos_piece='</s>', 
+                                       pad_piece='<pad>', unk_piece='<unk>',
+                                       normalization_rule_name="nmt_nfkc",
+                                       byte_fallback=True,
                                        remove_extra_whitespaces=True,
-                                       max_sentence_length=4192,
                                        shuffle_input_sentence=True,
-                                       character_coverage=0.99995,
+                                       character_coverage=0.9999,
                                        split_digits=True,
                                        split_by_unicode_script=True,
                                        split_by_whitespace=True,
                                        split_by_number=True,
-                                       add_dummy_prefix=True,
-                                       train_extremely_large_corpus=True,
-                                       allow_whitespace_only_pieces=True)
+                                       add_dummy_prefix=True)
         
         os.remove('tmp.txt')

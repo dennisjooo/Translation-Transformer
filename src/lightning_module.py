@@ -40,7 +40,8 @@ class TransformerLightning(L.LightningModule):
             total_steps (int, optional): Total number of training steps. Defaults to 100.
             n_classes (int, optional): Number of classes for classification. Defaults to 2.
             lambda_val (float, optional): L2 regularization strength. Defaults to 0.01.
-            warmup_steps (int, optional): Number of warmup steps for learning rate scheduler. Defaults to 1000.
+            warmup_steps (int, optional): Number of warmup steps for learning rate scheduler. 
+            Defaults to 1000.
             grad_accum_steps (int, optional): Number of gradient accumulation steps. Defaults to 1.
         """
         super().__init__()
@@ -59,7 +60,8 @@ class TransformerLightning(L.LightningModule):
                                              ignore_index=self.padding_value)
         
         # Define the loss function with label smoothing
-        self.criterion = nn.CrossEntropyLoss(ignore_index=self.padding_value, label_smoothing=0.1)
+        self.criterion = nn.CrossEntropyLoss(ignore_index=self.padding_value, 
+                                             label_smoothing=0.1)
         
     def _shared_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], 
                      batch_idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -67,7 +69,8 @@ class TransformerLightning(L.LightningModule):
         Perform a shared step for both training and validation.
 
         Args:
-            batch (Tuple[torch.Tensor, torch.Tensor, torch.Tensor]): Input batch containing source, target, and labels.
+            batch (Tuple[torch.Tensor, torch.Tensor, torch.Tensor]): Input batch containing source,
+            target, and labels.
             batch_idx (int): Index of the current batch.
 
         Returns:
@@ -86,7 +89,8 @@ class TransformerLightning(L.LightningModule):
         Perform a single training step.
 
         Args:
-            batch (Tuple[torch.Tensor, torch.Tensor, torch.Tensor]): Input batch containing source, target, and labels.
+            batch (Tuple[torch.Tensor, torch.Tensor, torch.Tensor]): Input batch containing source, target, 
+            and labels.
             batch_idx (int): Index of the current batch.
 
         Returns:
@@ -105,7 +109,8 @@ class TransformerLightning(L.LightningModule):
         Perform a single validation step.
 
         Args:
-            batch (Tuple[torch.Tensor, torch.Tensor, torch.Tensor]): Input batch containing source, target, and labels.
+            batch (Tuple[torch.Tensor, torch.Tensor, torch.Tensor]): Input batch containing source, target, 
+            and labels.
             batch_idx (int): Index of the current batch.
 
         Returns:
@@ -133,7 +138,8 @@ class TransformerLightning(L.LightningModule):
                 return float(current_step) / float(max(1, self.warmup_steps))
 
             # Cosine annealing phase: learning rate decreases from 1 to 0 (scaling factor)
-            progress = (current_step - self.warmup_steps) / float(max(1, self.total_steps - self.warmup_steps))
+            progress = ((current_step - self.warmup_steps) / 
+                        float(max(1, self.total_steps - self.warmup_steps)))
             return max(1e-7, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
         # Return LambdaLR with the lambda function that scales the base lr
@@ -146,6 +152,7 @@ class TransformerLightning(L.LightningModule):
         Returns:
             Dict[str, Any]: A dictionary containing the optimizer and learning rate scheduler.
         """
-        optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, betas=(0.9, 0.98), weight_decay=self.lambda_val)
+        optimizer = optim.AdamW(self.model.parameters(), lr=self.lr, betas=(0.9, 0.98), 
+                                weight_decay=self.lambda_val)
         scheduler = self.get_lr_scheduler(optimizer)
         return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "interval": "step"}}

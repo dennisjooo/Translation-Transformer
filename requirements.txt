@@ -1,6 +1,9 @@
-torch
+kagglehub
 lightning
-torchmetrics
+numpy
 sentencepiece
 pandas
-numpy
+python-dotenv
+torch
+torchmetrics
+wandb
