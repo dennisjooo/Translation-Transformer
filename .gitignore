@@ -3,3 +3,4 @@
 *.pth
 dev/
 .env
+logs/

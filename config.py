@@ -1,6 +1,7 @@
 config = {
     # Data and preprocessing
-    "data_path": "/data/en-fr.csv",
+    "kaggle_source_path": "dhruvildave/en-fr-translation-dataset",
+    "data_path": "data/en-fr.csv",
     "max_vocab": 32768,
     "max_len": 1024,
     "src_tokenizer_path": "tokenizer/en_tokenizer.model",
@@ -17,10 +18,11 @@ config = {
     
     # Training parameters
     "batch_size": 16,
-    "num_workers": 2,
+    "num_workers": 16,
     "lr": 2e-4,
     "padding_value": 0,
-    "max_epochs": 10,
+    "max_epochs": 3,
     "grad_accum_steps": 4,
-    "lambda_val": 5e-4
+    "lambda_val": 5e-4,
+    "precision": "16-mixed"
 }

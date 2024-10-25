@@ -5,48 +5,57 @@ languages, with a focus on English to French translation. As of now it produces 
 
 ## Features
 
-- Transformer-based architecture for sequence-to-sequence translation
-- PyTorch Lightning for efficient training and evaluation
-- SentencePiece tokenization for handling large vocabularies
-- Customizable sampling strategies (greedy, random, beam search)
-- L2 regularization and learning rate scheduling
-- Support for different inference methods (greedy, random sampling, beam search)
+- Full Transformer architecture implementation for sequence-to-sequence translation
+- PyTorch Lightning for structured and efficient training
+- SentencePiece tokenization for subword-level vocabulary
+- Multiple decoding strategies:
+  - Greedy search
+  - Random sampling with temperature
+  - Beam search
+- Training optimizations:
+  - L2 regularization
+  - Learning rate scheduling with warmup
+  - Gradient accumulation
+  - Early stopping
 
 ## Requirements
 
-Install the required packages using:
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Main dependencies include:
+Core dependencies:
 
-- torch
-- lightning
-- torchmetrics
-- sentencepiece
-- pandas
-- numpy
+- PyTorch
+- PyTorch Lightning
+- TorchMetrics
+- SentencePiece
+- Pandas
+- NumPy
 
 ## Project Structure
 
-- `main.py`: Entry point for running inference with a trained model
-- `train.py`: Script for training the Transformer model
-- `src/`:
-  - `model.py`: Implementation of the Transformer architecture
-  - `dataset.py`: Data loading and preprocessing utilities
-  - `lightning_module.py`: PyTorch Lightning module for training
-  - `sampler.py`: Sampling strategies for inference (including greedy, random, and beam search)
-- `tokenizer/`:
-  - `en_tokenizer.vocab`: English vocabulary file for SentencePiece tokenizer
-  - `en_tokenizer.model`: English tokenizer model file for SentencePiece tokenizer
-  - `fr_tokenizer.vocab`: French vocabulary file for SentencePiece tokenizer
-  - `fr_tokenizer.model`: French tokenizer model file for SentencePiece tokenizer
-- `config.py`: Configuration settings for the project
-- `requirements.txt`: List of required Python packages
-- `README.md`: Project documentation (this file)
-- `.gitignore`: Specifies intentionally untracked files to ignore
+```bash
+├── main.py                 # Inference script
+├── train.py                # Training script
+├── config.py               # Configuration parameters
+├── kaggle_download.py      # Dataset download utility
+├── train_tokenizer.py      # Tokenizer training script
+├── run_training.sh         # Shell script for running the pipeline
+├── src/
+│   ├── model.py            # Transformer implementation
+│   ├── dataset.py          # Data processing
+│   ├── lightning_module.py # Training module
+│   └── sampler.py          # Decoding strategies
+├── tokenizer/              # Pre-trained tokenizer files
+│   ├── en_tokenizer.model  # English tokenizer
+│   ├── en_tokenizer.vocab  # English vocabulary
+│   ├── fr_tokenizer.model  # French tokenizer
+│   └── fr_tokenizer.vocab  # French vocabulary
+└── requirements.txt        # Project dependencies
+```
 
 ## Usage
 
@@ -73,11 +82,10 @@ This will start an interactive session where you can input sentences for transla
 
 ## Limitations
 
-- The amount of data used for training is limited ($2^{17}$), so the model may not perform well at all.
+- The amount of data used for training is limited ($2^{23}$), so the model may not perform well at all.
 But I guess what matters to
   me is it's more a debugging exercise and to get a better understanding of the concepts.
 - Sampling strategy is off especially if it uses some greedy like policy.
-- Training SPM on higher amount of vocab_size is slow, so I cap it to 9999.
 - I'm debating on how to make the dataset. Should I add `<BOS>` and `<EOS>` tokens first and then chop it to max_length or should I add them later.
   Right now, I chop it first and then add `<BOS>` and `<EOS>` which might cause some inefficiency.
 - Hyperparameter search is whatever I think of at the moment, not robust at all.

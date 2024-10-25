@@ -59,14 +59,20 @@ def main(args):
 
     # Create the WandbLogger
     wandb_logger = WandbLogger(project="Translation Transformer", 
-                            version=datetime.now().strftime("%Y-%m-%d_%H_%M_%S"))
+                            version=datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S"))
+    
+    # Log the hyperparameters
+    wandb_logger.experiment.config.update(config)
+
+    # Log the model
+    wandb_logger.watch(model, log="all")
 
     # Setup model checkpointing
     checkpoint_callback = ModelCheckpoint(
         monitor='val_loss',
         dirpath='checkpoints',
         filename='transformer-{epoch:02d}-{val_loss:.2f}',
-        save_top_k=3,
+        save_top_k=1,
         mode='min',
     )
 
@@ -93,12 +99,12 @@ def main(args):
         devices="auto",
         callbacks=callbacks,
         strategy='auto',
-        log_every_n_steps=5,
+        log_every_n_steps=20,
         gradient_clip_val=1.0,
         accumulate_grad_batches=config['grad_accum_steps'],
         check_val_every_n_epoch=1,
-        precision=16,
-        max_time=datetime.timedelta(hours=12),
+        precision=config["precision"],
+        max_time=datetime.timedelta(hours=18),
         logger=wandb_logger
     )
 
