@@ -4,3 +4,5 @@
 dev/
 .env
 logs/
+.venv/
+setup_cloud.sh

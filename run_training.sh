@@ -12,7 +12,7 @@ else
 fi
 
 # Download the dataset
-python kaggle_download.py
+python download_data.py
 
 # Train the tokenizers
 python train_tokenizer.py

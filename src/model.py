@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+from typing import Tuple
 
 class MLP(nn.Module):
     def __init__(self, n_embed: int, n_hidden: int, dropout_p: float = 0.1):
@@ -85,8 +86,7 @@ class SelfAttention(nn.Module):
         
         attention = F.scaled_dot_product_attention(
             q, k, v, 
-            attn_mask=mask,  # Pass the mask to the attention mechanism
-            is_causal=self.is_causal,
+            attn_mask=mask,
             dropout_p=self.dropout_p if self.training else 0.0
         )
         
@@ -113,15 +113,12 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass of the PositionalEncoding module.
-
         Args:
-            x (torch.Tensor): Input tensor of shape (seq_len, batch_size, d_model).
-
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len, d_model)
         Returns:
-            torch.Tensor: Output tensor with positional encoding added.
+            torch.Tensor: Output tensor of shape (batch_size, seq_len, d_model)
         """
-        return x + self.pe[:x.size(0)]
+        return x + self.pe.transpose(0, 1)[:, :x.size(1)]
 
 class EncoderBlock(nn.Module):
     def __init__(self, n_embed: int, n_head: int, n_hidden: int, dropout_p: float = 0.1):
@@ -219,15 +216,18 @@ class DecoderBlock(nn.Module):
         self.norm3 = nn.LayerNorm(n_embed)
         self.dropout = nn.Dropout(dropout_p)
         
-    def forward(self, x: torch.Tensor, enc_output: torch.Tensor, src_mask: torch.Tensor = None, trg_mask: torch.Tensor = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, enc_output: torch.Tensor, 
+                src_mask: torch.Tensor = None, trg_mask: torch.Tensor = None) -> torch.Tensor:
         """
         Forward pass of the DecoderBlock.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len, n_embed).
             enc_output (torch.Tensor): Encoder output tensor of shape (batch_size, src_seq_len, n_embed).
-            src_mask (torch.Tensor, optional): Source attention mask tensor of shape (batch_size, 1, 1, src_seq_len). Defaults to None.
-            trg_mask (torch.Tensor, optional): Target attention mask tensor of shape (batch_size, 1, 1, seq_len). Defaults to None.
+            src_mask (torch.Tensor, optional): Source attention mask tensor of shape (batch_size, 1, 1, src_seq_len). 
+            Defaults to None.
+            trg_mask (torch.Tensor, optional): Target attention mask tensor of shape (batch_size, 1, 1, seq_len). 
+            Defaults to None.
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, n_embed).
@@ -263,15 +263,18 @@ class Decoder(nn.Module):
         self.pe = PositionalEncoding(n_embed, max_len)
         self.embed = nn.Embedding(vocab_size, n_embed)
         
-    def forward(self, x: torch.Tensor, enc_output: torch.Tensor, src_mask: torch.Tensor = None, trg_mask: torch.Tensor = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, enc_output: torch.Tensor, 
+                src_mask: torch.Tensor = None, trg_mask: torch.Tensor = None) -> torch.Tensor:
         """
         Forward pass of the Decoder.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len).
             enc_output (torch.Tensor): Encoder output tensor of shape (batch_size, src_seq_len, n_embed).
-            src_mask (torch.Tensor, optional): Source attention mask tensor of shape (batch_size, 1, 1, src_seq_len). Defaults to None.
-            trg_mask (torch.Tensor, optional): Target attention mask tensor of shape (batch_size, 1, 1, seq_len). Defaults to None.
+            src_mask (torch.Tensor, optional): Source attention mask tensor of shape (batch_size, 1, 1, src_seq_len). 
+            Defaults to None.
+            trg_mask (torch.Tensor, optional): Target attention mask tensor of shape (batch_size, 1, 1, seq_len). 
+            Defaults to None.
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, n_embed).
@@ -316,17 +319,39 @@ class Transformer(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, trg_seq_len, vocab_size).
         """
-        # Create source padding mask
-        src_mask = (src != self.pad_idx).unsqueeze(1).unsqueeze(2)  # Shape: (batch_size, 1, 1, src_len)
+        src_mask, trg_mask = self.create_masks(src, trg)
 
-        # Pass through encoder with source mask
+        # Pass through encoder and decoder with appropriate masks
         enc_output = self.encoder(src, mask=src_mask)
-
-        # Create target padding mask
-        trg_mask = (trg != self.pad_idx).unsqueeze(1).unsqueeze(2)  # Shape: (batch_size, 1, 1, trg_len)
-
-        # Pass through decoder with target and source masks
         dec_output = self.decoder(trg, enc_output, src_mask=src_mask, trg_mask=trg_mask)
         
         output = self.output(self.norm(dec_output))
         return output
+    
+    
+    def create_masks(self, src: torch.Tensor, trg: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Create source and target masks for the Transformer.
+
+        Args:
+            src (torch.Tensor): Source tensor of shape (batch_size, src_seq_len).
+            trg (torch.Tensor): Target tensor of shape (batch_size, trg_seq_len).
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Source mask and target mask.
+        """
+        # Create source padding mask
+        src_mask = (src != self.pad_idx).unsqueeze(1).unsqueeze(2)  # Shape: (batch_size, 1, 1, src_len)
+
+        # Create target padding mask
+        trg_pad_mask = (trg != self.pad_idx).unsqueeze(1).unsqueeze(2)  # Shape: (batch_size, 1, 1, trg_len)
+        
+        # Create causal mask for decoder
+        seq_len = trg.size(1)
+        causal_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
+        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)  # Shape: (1, 1, seq_len, seq_len)
+        
+        # Combine padding and causal masks
+        trg_mask = trg_pad_mask & ~causal_mask.to(trg.device)
+
+        return src_mask, trg_mask

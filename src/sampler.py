@@ -108,7 +108,7 @@ class Sampler:
                     new_beams.append((new_beam, score + token_score.item()))
 
             beams = sorted(new_beams, key=lambda x: x[1], reverse=True)[:beam_size]
-
+            
             if beams[0][0][0][-1].item() == self.end_token:
                 break
 
@@ -186,12 +186,12 @@ class SamplerCallback(Callback):
             self.sample_translation(trainer)
             self.model.train()
             
-    def sample_translation(self, trainer: L.Trainer, sampling_strategy: str = 'random'):
+    def sample_translation(self, trainer: L.Trainer, sampling_strategy: str = 'beam'):
         """
         Generate a translation sample using the specified sampling strategy.
         Args:
             trainer (L.Trainer): The trainer object.
-            sampling_strategy (str, optional): The sampling strategy to use. Defaults to 'random'.
+            sampling_strategy (str, optional): The sampling strategy to use. Defaults to 'beam'.
         Returns:
             None: If either X_src, X_context, or y_tgt is empty.
             str: The translated text.
@@ -216,8 +216,8 @@ class SamplerCallback(Callback):
             torch.tensor([[1]]).to(self.device), X_context.clone()[:3].to(self.device).unsqueeze(0)
         ], dim=1)
         
-        # Generate a sample
-        X_tgt = self.sampler(X_src, _X_context, sampling_strategy, temperature=1.5)
+        # Generate a sample using beam search
+        X_tgt = self.sampler(X_src, _X_context, sampling_strategy, beam_size=8)
     
         # Decode the target
         source = self.src_tokenizer.decode_ids(X_src.squeeze().tolist())

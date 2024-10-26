@@ -1,5 +1,4 @@
 import os
-from typing import List
 import pandas as pd
 import sentencepiece as spm
 from pandas import Series
@@ -22,9 +21,9 @@ def train_tokenizers(text_list: Series, tokenizer_path: str) -> None:
     
     # Temporary file to write the string to
     with open('tmp.txt', 'w') as f:
-        # Write the data to the file in chunks of 5 entries per line
-        for i in range(0, len(text_list), 5):
-            chunk = text_list.iloc[i:i+5]
+        # Write the data to the file in chunks of 3 entries per line
+        for i in range(0, len(text_list), 3):
+            chunk = text_list.iloc[i:i+3]
             chunk = chunk.astype(str)
             f.write('\t'.join(chunk) + '\n')
         
@@ -37,12 +36,7 @@ def train_tokenizers(text_list: Series, tokenizer_path: str) -> None:
                                     normalization_rule_name="nmt_nfkc",
                                     remove_extra_whitespaces=True,
                                     shuffle_input_sentence=True,
-                                    character_coverage=0.9999,
-                                    split_digits=True,
-                                    split_by_unicode_script=True,
-                                    split_by_whitespace=True,
-                                    split_by_number=True,
-                                    add_dummy_prefix=True)
+                                    split_digits=True)
     
     # Remove the temporary file
     os.remove('tmp.txt')
@@ -79,6 +73,7 @@ def main() -> None:
         print("Training target tokenizer...")
         train_tokenizers(df['tgt'], tgt_tokenizer_path.split('.')[0])
         print("Tokenizer training completed!")
+        
     else:
         print("Tokenizers already exist, skipping training.")
 

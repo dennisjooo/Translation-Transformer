@@ -53,8 +53,14 @@ class TranslateDataset(Dataset):
             Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Source sequence, target input sequence, 
             and target output sequence.
         """
-        X_src = self.src_tokenizer.encode(self.data.iloc[idx]['src'])[:self.max_len]
-        tgt = self.tgt_tokenizer.encode(self.data.iloc[idx]['tgt'])[:self.max_len - 1] 
+        # Add end token to source sequence and handle lengths better
+        src_tokens = self.src_tokenizer.encode_as_ids(self.data.iloc[idx]['src'])
+        tgt_tokens = self.tgt_tokenizer.encode_as_ids(self.data.iloc[idx]['tgt'])
+        
+        # Leave room for end token in source sequence
+        X_src = src_tokens[:self.max_len-1] + [self.end_token]
+        # Leave room for start and end tokens in target sequence
+        tgt = tgt_tokens[:self.max_len-2]
         
         y_tgt = tgt[1:].copy() + [self.end_token]
         X_tgt = [self.start_token] + tgt[:-1].copy()

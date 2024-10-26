@@ -38,21 +38,22 @@ Core dependencies:
 ## Project Structure
 
 ```bash
-├── main.py                 # Inference script
-├── train.py                # Training script
-├── config.py               # Configuration parameters
-├── kaggle_download.py      # Dataset download utility
-├── train_tokenizer.py      # Tokenizer training script
-├── run_training.sh         # Shell script for running the pipeline
+├── main.py                 # Inference script for translation
+├── train.py                # Training script with PyTorch Lightning
+├── config.py               # Configuration and hyperparameters
+├── download_data.py        # Dataset download from statmt.org
+├── train_tokenizer.py      # SentencePiece tokenizer training
+├── run_training.sh         # Training pipeline automation
 ├── src/
-│   ├── model.py            # Transformer implementation
-│   ├── dataset.py          # Data processing
-│   ├── lightning_module.py # Training module
-│   └── sampler.py          # Decoding strategies
+│   ├── model.py            # Transformer architecture implementation
+│   ├── dataset.py          # Data processing and loading
+│   ├── lightning_module.py # PyTorch Lightning training module
+│   ├── sampler.py          # Decoding strategies (greedy, beam, random)
+│   └── test_sampler.py     # Sampler unit tests
 ├── tokenizer/              # Pre-trained tokenizer files
-│   ├── en_tokenizer.model  # English tokenizer
+│   ├── en_tokenizer.model  # English SentencePiece model
 │   ├── en_tokenizer.vocab  # English vocabulary
-│   ├── fr_tokenizer.model  # French tokenizer
+│   ├── fr_tokenizer.model  # French SentencePiece model
 │   └── fr_tokenizer.vocab  # French vocabulary
 └── requirements.txt        # Project dependencies
 ```

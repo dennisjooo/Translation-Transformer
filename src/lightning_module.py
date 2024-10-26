@@ -6,21 +6,6 @@ import torch.optim as optim
 import torchmetrics
 from typing import Tuple, Dict, Any
 
-def l2_penalty(model: nn.Module, lambda_val: float = 0.01) -> torch.Tensor:
-    """
-    Calculate the L2 regularization penalty for a given model.
-
-    Args:
-        model (nn.Module): The neural network model.
-        lambda_val (float, optional): The regularization strength. Defaults to 0.01.
-
-    Returns:
-        torch.Tensor: The L2 penalty value.
-    """
-    penalty = 0
-    for param in model.parameters():
-        penalty += torch.sum(param ** 2)
-    return lambda_val * penalty
 
 class TransformerLightning(L.LightningModule):
     """

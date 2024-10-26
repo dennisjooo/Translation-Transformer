@@ -41,7 +41,7 @@ def main(args):
     # Calculate the total_steps
     total_steps = config['max_epochs'] * (config['max_data'] // config['batch_size']) * config['split_size']
 
-    warmup_steps = int(0.1 * total_steps)
+    warmup_steps = config['warmup_steps']
 
     # Create the lightning model
     lightning_model = TransformerLightning(model, config["lr"], config["padding_value"], 
@@ -57,12 +57,13 @@ def main(args):
     # Login to wandb
     wandb.login(key=os.getenv("WANDB_KEY"))
 
+    # Initialize a wandb run
+    run = wandb.init(project="Translation Transformer", 
+                     name=datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S"),
+                     config=config)
+
     # Create the WandbLogger
-    wandb_logger = WandbLogger(project="Translation Transformer", 
-                            version=datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S"))
-    
-    # Log the hyperparameters
-    wandb_logger.experiment.config.update(config)
+    wandb_logger = WandbLogger(experiment=run)
 
     # Log the model
     wandb_logger.watch(model, log="all")
@@ -95,7 +96,7 @@ def main(args):
     # Create the trainer
     trainer = L.Trainer(
         max_epochs=config["max_epochs"], 
-        accelerator="cpu" if not torch.cuda.is_available() else "gpu",
+        accelerator="auto",
         devices="auto",
         callbacks=callbacks,
         strategy='auto',
