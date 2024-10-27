@@ -12,9 +12,9 @@ config = {
     'data_path': os.path.join(os.path.dirname(__file__), 'data', 'en_fr_dataset.csv'),
     
     # Model architecture
-    "n_embed": 1024,
-    "n_head": 8,
-    "n_hidden": 1024 * 4,
+    "n_embed": 512,
+    "n_head": 16,
+    "n_hidden": 512 * 4,
     "n_layers": 6,
     "dropout_p": 0.15,
     
