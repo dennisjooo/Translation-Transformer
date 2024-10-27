@@ -2,8 +2,8 @@ import os
 
 config = {
     # Data and preprocessing
-    "max_vocab": 16384,
-    "max_len": 512,
+    "max_vocab": 32768,
+    "max_len": 1024,
     "src_tokenizer_path": "tokenizer/en_tokenizer.model",
     "tgt_tokenizer_path": "tokenizer/fr_tokenizer.model",
     "max_data": 2007723,
