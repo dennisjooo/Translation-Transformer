@@ -29,7 +29,7 @@ def train_tokenizers(text_list: Series, tokenizer_path: str) -> None:
         
     # Train the tokenizer
     spm.SentencePieceTrainer.train(input='tmp.txt', model_prefix=tokenizer_path, 
-                                    vocab_size=config['max_vocab'], model_type='bpe',
+                                    vocab_size=config['max_vocab'], model_type='unigram',
                                     bos_id=1, eos_id=2, pad_id=0, unk_id=3,
                                     bos_piece='<s>', eos_piece='</s>', 
                                     pad_piece='<pad>', unk_piece='<unk>',

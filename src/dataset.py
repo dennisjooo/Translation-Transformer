@@ -219,19 +219,13 @@ class DataModule(L.LightningDataModule):
             
         # Train the tokenizer
         spm.SentencePieceTrainer.train(input='tmp.txt', model_prefix=tokenizer_path, 
-                                       vocab_size=self.max_vocab, model_type='bpe',
+                                       vocab_size=self.max_vocab, model_type='unigram',
                                        bos_id=1, eos_id=2, pad_id=0, unk_id=3,
                                        bos_piece='<s>', eos_piece='</s>', 
                                        pad_piece='<pad>', unk_piece='<unk>',
                                        normalization_rule_name="nmt_nfkc",
-                                       byte_fallback=True,
                                        remove_extra_whitespaces=True,
                                        shuffle_input_sentence=True,
-                                       character_coverage=0.9999,
-                                       split_digits=True,
-                                       split_by_unicode_script=True,
-                                       split_by_whitespace=True,
-                                       split_by_number=True,
-                                       add_dummy_prefix=True)
-        
+                                       split_digits=True)
+            
         os.remove('tmp.txt')
