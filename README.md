@@ -1,7 +1,8 @@
 # Translation with Transformer
 
-This project implements a translation system using a Transformer model. It's designed for translating between two
-languages, with a focus on English to French translation. As of now it produces some French sounding sentences but not very good.
+This project implements a translation system using a Transformer model for English to French translation. Currently,
+the model can generate French-like sentences, though the output quality is still experimental. This implementation
+serves primarily as a learning exercise for understanding Transformer architecture and debugging practices.
 
 ## Features
 
@@ -81,12 +82,17 @@ python main.py --model_path /path/to/your/model.pth --input_text "Hello, how are
 Use `python main.py --help` to see all available inference options.
 This will start an interactive session where you can input sentences for translation.
 
-## Limitations
+## Current Limitations & Development Notes
 
-- The amount of data used for training is limited ($2^{23}$), so the model may not perform well at all.
-But I guess what matters to
-  me is it's more a debugging exercise and to get a better understanding of the concepts.
-- Sampling strategy is off especially if it uses some greedy like policy.
-- I'm debating on how to make the dataset. Should I add `<BOS>` and `<EOS>` tokens first and then chop it to max_length or should I add them later.
-  Right now, I chop it first and then add `<BOS>` and `<EOS>` which might cause some inefficiency.
-- Hyperparameter search is whatever I think of at the moment, not robust at all.
+- **Training Data**: Limited to 2²³ samples, affecting overall model performance
+- **Sampling Issues**: Current implementation of greedy search and other sampling strategies needs optimization
+- **Dataset Processing**: Current approach of chopping sequences before adding `<BOS>` and `<EOS>` tokens may be suboptimal
+- **Hyperparameter Tuning**: Current parameters are experimental and need systematic optimization
+
+### Development Decisions
+
+The project prioritizes learning and debugging over production-ready performance. Key areas for improvement include:
+
+- Optimizing the token addition sequence (`<BOS>`, `<EOS>`) in data preprocessing
+- Implementing more robust hyperparameter search
+- Improving sampling strategies, especially for greedy decoding
