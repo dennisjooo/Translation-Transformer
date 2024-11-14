@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchmetrics
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, List
 
 
 class TransformerLightning(L.LightningModule):
@@ -12,7 +12,7 @@ class TransformerLightning(L.LightningModule):
     A PyTorch Lightning module for training and evaluating a Transformer model.
     """
 
-    def __init__(self, model: nn.Module, lr: float = 1e-3, padding_value: int = 0, 
+    def __init__(self, model: nn.Module, tokenizer: Any, lr: float = 1e-3, padding_value: int = 0, 
                  total_steps: int = 100, n_classes: int = 2, lambda_val: float = 0.01, 
                  warmup_steps: int = 1000, grad_accum_steps: int = 1):
         """
@@ -20,6 +20,7 @@ class TransformerLightning(L.LightningModule):
 
         Args:
             model (nn.Module): The Transformer model.
+            tokenizer: The tokenizer for decoding predictions
             lr (float, optional): Learning rate. Defaults to 1e-3.
             padding_value (int, optional): Value used for padding. Defaults to 0.
             total_steps (int, optional): Total number of training steps. Defaults to 100.
@@ -31,6 +32,7 @@ class TransformerLightning(L.LightningModule):
         """
         super().__init__()
         self.model = model
+        self.tokenizer = tokenizer
         self.lr = lr
         self.padding_value = padding_value
         self.total_steps = total_steps
@@ -39,17 +41,23 @@ class TransformerLightning(L.LightningModule):
         self.grad_accum_steps = grad_accum_steps
 
         # Initialize accuracy metrics
-        self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=n_classes, 
+        self.train_acc = torchmetrics.Accuracy(task="multiclass", 
+                                               num_classes=n_classes,
                                                ignore_index=self.padding_value)
-        self.val_acc = torchmetrics.Accuracy(task="multiclass", num_classes=n_classes, 
+        self.val_acc = torchmetrics.Accuracy(task="multiclass", 
+                                             num_classes=n_classes,
                                              ignore_index=self.padding_value)
         
-        # Define the loss function with label smoothing
+        # Initialize BLEU score metrics properly
+        self.train_bleu = torchmetrics.text.BLEUScore(n_gram=4, smooth=True)
+        self.val_bleu = torchmetrics.text.BLEUScore(n_gram=4, smooth=True)
+        
+        # Define loss function with label smoothing
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.padding_value, 
                                              label_smoothing=0.1)
         
     def _shared_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], 
-                     batch_idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+                     batch_idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[List[str]], List[List[str]]]:
         """
         Perform a shared step for both training and validation.
 
@@ -59,14 +67,32 @@ class TransformerLightning(L.LightningModule):
             batch_idx (int): Index of the current batch.
 
         Returns:
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Loss, predictions, and labels.
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[List[str]], List[List[str]]]: Loss, predictions, and labels.
         """
         X_src, X_tgt, y = batch
         y_hat = self.model(X_src, X_tgt)
         y_hat = y_hat.view(-1, y_hat.size(-1))
         y = y.view(-1)
-        loss = self.criterion(y_hat, y)  # Use label-smoothed loss
-        return loss, y_hat, y
+        
+        # Calculate token-level loss
+        loss = self.criterion(y_hat, y)
+        
+        # Reshape predictions and targets for BLEU calculation
+        pred_tokens = y_hat.argmax(dim=-1).view(X_tgt.shape[0], -1)
+        target_tokens = y.view(X_tgt.shape[0], -1)
+        
+        # Use the stored tokenizer instead of accessing through trainer
+        pred_seqs = [
+            self.tokenizer.decode_ids([t.item() for t in seq if t.item() != self.padding_value]).split()
+            for seq in pred_tokens
+        ]
+        
+        target_seqs = [
+            self.tokenizer.decode_ids([t.item() for t in seq if t.item() != self.padding_value]).split()
+            for seq in target_tokens
+        ]
+        
+        return loss, y_hat, y, pred_seqs, target_seqs
     
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], 
                       batch_idx: int) -> torch.Tensor:
@@ -81,11 +107,19 @@ class TransformerLightning(L.LightningModule):
         Returns:
             torch.Tensor: The calculated loss.
         """
-        loss, y_hat, y = self._shared_step(batch, batch_idx)
+        loss, y_hat, y, pred_seqs, target_seqs = self._shared_step(batch, batch_idx)
         loss = loss / self.grad_accum_steps
+        
+        # Calculate metrics
         self.train_acc(y_hat, y)
+        # BLEU expects a list of predictions and a list of references
+        self.train_bleu(pred_seqs, [[t] for t in target_seqs])  # Each target needs to be in a list
+        
+        # Log metrics
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log("train_acc", self.train_acc, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("train_bleu", self.train_bleu, on_step=True, on_epoch=True, prog_bar=True)
+        
         return loss
     
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], 
@@ -101,10 +135,18 @@ class TransformerLightning(L.LightningModule):
         Returns:
             torch.Tensor: The calculated loss.
         """
-        loss, y_hat, y = self._shared_step(batch, batch_idx)
+        loss, y_hat, y, pred_seqs, target_seqs = self._shared_step(batch, batch_idx)
+        
+        # Calculate metrics
         self.val_acc(y_hat, y)
+        # BLEU expects a list of predictions and a list of references
+        self.val_bleu(pred_seqs, [[t] for t in target_seqs])  # Each target needs to be in a list
+        
+        # Log metrics
         self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log("val_acc", self.val_acc, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val_bleu", self.val_bleu, on_step=True, on_epoch=True, prog_bar=True)
+        
         return loss
     
     def get_lr_scheduler(self, optimizer: optim.Optimizer) -> optim.lr_scheduler.LambdaLR:

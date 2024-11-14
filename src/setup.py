@@ -43,12 +43,13 @@ def create_model(config: dict) -> nn.Module:
     logging.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     return model
 
-def setup_lightning_model(model: nn.Module, config: dict) -> TransformerLightning:
+def setup_lightning_model(model: nn.Module, data_module: DataModule, config: dict) -> TransformerLightning:
     """
     Create a PyTorch Lightning wrapper for the transformer model.
     
     Args:
         model (nn.Module): The transformer model to wrap
+        data_module (DataModule): The data module containing tokenizers
         config (dict): Training configuration parameters
         
     Returns:
@@ -56,9 +57,15 @@ def setup_lightning_model(model: nn.Module, config: dict) -> TransformerLightnin
     """
     total_steps = config['max_epochs'] * (config['max_data'] // config['batch_size']) * config['split_size']
     return TransformerLightning(
-        model, config["lr"], config["padding_value"],
-        total_steps, config['max_vocab'], config['lambda_val'],
-        config['warmup_steps'], config['grad_accum_steps']
+        model=model,
+        tokenizer=data_module.tgt_tokenizer,
+        lr=config["lr"],
+        padding_value=config["padding_value"],
+        total_steps=total_steps,
+        n_classes=config['max_vocab'],
+        lambda_val=config['lambda_val'],
+        warmup_steps=config['warmup_steps'],
+        grad_accum_steps=config['grad_accum_steps']
     )
 
 def setup_data_module(config: dict) -> DataModule:
@@ -109,33 +116,43 @@ def setup_wandb(model: nn.Module, config: dict) -> WandbLogger:
 
 def setup_callbacks(model: nn.Module, data_module: DataModule, config: dict) -> list:
     """
-    Setup training callbacks for model checkpointing, early stopping, and monitoring.
-    
+    Set up training callbacks for monitoring and controlling the training process.
+
     Args:
         model (nn.Module): The model being trained
         data_module (DataModule): Data module containing tokenizers
-        config (dict): Training configuration parameters
-        
+        config (dict): Configuration dictionary containing callback parameters
+
     Returns:
-        list: List of configured callbacks
+        list: List of callbacks including:
+            - LearningRateMonitor: Logs learning rate at each step
+            - SamplerCallback: Generates translation samples during training
+            - ModelCheckpoint: Saves model checkpoints based on BLEU score
+            - EarlyStopping: Stops training if BLEU score plateaus
+            - TQDMProgressBar: Shows training progress
     """
     return [
         LearningRateMonitor(logging_interval='step'),
-        SamplerCallback(model, data_module.src_tokenizer, data_module.tgt_tokenizer),
+        SamplerCallback(
+            model, 
+            data_module.src_tokenizer, 
+            data_module.tgt_tokenizer,
+            every_n_steps=50  # Sample more frequently
+        ),
         ModelCheckpoint(
-            monitor='val_loss',
+            monitor='val_bleu',  # Monitor BLEU score instead of loss
             dirpath='checkpoints',
-            filename='transformer-{epoch:02d}-{val_loss:.2f}',
+            filename='transformer-{epoch:02d}-{val_bleu:.2f}',
             save_top_k=3,
-            mode='min',
+            mode='max',
             auto_insert_metric_name=True,
             save_last=True
         ),
         EarlyStopping(
-            monitor='val_loss',
+            monitor='val_bleu',  # Monitor BLEU score for early stopping
             patience=config['early_stopping_patience'],
             verbose=True,
-            mode='min'
+            mode='max'
         ),
         TQDMProgressBar(refresh_rate=20)
     ]

@@ -15,14 +15,18 @@ load_dotenv()
 def main() -> None:
     """Main training function."""
     try:
+        # Parse arguments and setup
         args = parse_args()
         setup_directories()
         config.update(vars(args))
         validate_config(config)
         
+        # Create model and data module
         model = create_model(config)
-        lightning_model = setup_lightning_model(model, config)
-        data_module = setup_data_module(config)
+        data_module = setup_data_module(config)  # Create data_module first
+        
+        # Setup training components
+        lightning_model = setup_lightning_model(model, data_module, config)  # Pass data_module
         wandb_logger = setup_wandb(model, config)
         callbacks = setup_callbacks(model, data_module, config)
         trainer = setup_trainer(config, callbacks, wandb_logger)

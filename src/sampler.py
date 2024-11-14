@@ -81,37 +81,82 @@ class Sampler:
     def sample_beam_search(self, src: torch.Tensor, tgt: torch.Tensor = None, 
                            beam_size: int = 5) -> torch.Tensor:
         """
-        Perform beam search to generate a sequence of tokens.
+        Generate a sample using beam search with length penalty and n-gram repetition penalty.
 
         Args:
-            src (torch.Tensor): The source tensor.
-            tgt (torch.Tensor, optional): The target tensor. Defaults to None.
-            beam_size (int, optional): The size of the beam. Defaults to 5.
-            
+            src (torch.Tensor): The source tensor to translate from.
+            tgt (torch.Tensor, optional): Initial target tensor. If None, starts with BOS token. Defaults to None.
+            beam_size (int, optional): Number of beams to maintain during search. Defaults to 5.
+
         Returns:
-            torch.Tensor: The generated sequence of tokens.
+            torch.Tensor: The generated sequence with highest score after beam search.
+
+        Notes:
+            - Uses length penalty (alpha=0.6) to avoid bias towards shorter sequences
+            - Applies n-gram repetition penalty to discourage repetitive phrases
+            - Early stopping when all beams end with EOS token
+            - Maintains n-gram history per beam to detect repetitions
         """
         tgt = torch.tensor([1]).long().unsqueeze(0).to(self.device) if tgt is None else tgt.squeeze(0)
         beams = [(tgt, 0)]
-
-        for _ in range(self.max_len):
+        
+        # Length penalty parameter
+        alpha = 0.6
+        
+        # Keep track of n-grams in each beam
+        n_gram_size = 3
+        beam_n_grams = [set() for _ in range(beam_size)]
+        
+        for step in range(self.max_len):
             new_beams = []
-
-            for beam, score in beams:
+            
+            for beam_idx, (beam, score) in enumerate(beams):
+                if beam[0][-1].item() == self.end_token and step > 0:
+                    new_beams.append((beam, score))
+                    continue
+                    
                 logits = self.model(src, beam).squeeze(0)
-                topk = torch.topk(logits[-1], beam_size)
-
-                for i in range(beam_size):
-                    token = topk.indices[i]
-                    token_score = topk.values[i]
+                
+                # Apply length penalty
+                length_penalty = ((5 + step + 1) ** alpha) / (6 ** alpha)
+                
+                # Get top-k tokens
+                topk = torch.topk(logits[-1], beam_size * 2)  # Get more candidates
+                
+                for token, token_score in zip(topk.indices, topk.values):
+                    token = token.item()
                     new_beam = torch.cat([beam, torch.tensor([token]).long().unsqueeze(0).to(self.device)], dim=-1)
-                    new_beams.append((new_beam, score + token_score.item()))
-
+                    
+                    # Check for n-gram repetition
+                    tokens = new_beam.squeeze().tolist()
+                    n_grams = set()
+                    for i in range(len(tokens) - n_gram_size + 1):
+                        n_gram = tuple(tokens[i:i + n_gram_size])
+                        n_grams.add(n_gram)
+                    
+                    # Apply repetition penalty
+                    repetition_penalty = 1.0
+                    if any(n_gram in beam_n_grams[beam_idx] for n_gram in n_grams):
+                        repetition_penalty = 0.7
+                    
+                    new_score = (score + token_score.item()) / length_penalty * repetition_penalty
+                    new_beams.append((new_beam, new_score))
+            
+            # Sort and keep top beams
             beams = sorted(new_beams, key=lambda x: x[1], reverse=True)[:beam_size]
             
-            if beams[0][0][0][-1].item() == self.end_token:
+            # Update n-grams for each beam
+            for i, (beam, _) in enumerate(beams):
+                tokens = beam.squeeze().tolist()
+                beam_n_grams[i] = set()
+                for j in range(len(tokens) - n_gram_size + 1):
+                    n_gram = tuple(tokens[j:j + n_gram_size])
+                    beam_n_grams[i].add(n_gram)
+            
+            # Early stopping if all beams ended
+            if all(beam[0][-1].item() == self.end_token for beam, _ in beams):
                 break
-
+        
         return beams[0][0]
     
     def __call__(self, src: torch.Tensor, tgt: torch.Tensor = None, 
