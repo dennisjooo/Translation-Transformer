@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchmetrics
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from typing import Tuple, Dict, Any, List
 
 
@@ -48,9 +49,11 @@ class TransformerLightning(L.LightningModule):
                                              num_classes=n_classes,
                                              ignore_index=self.padding_value)
         
-        # Initialize BLEU score metrics properly
-        self.train_bleu = torchmetrics.text.BLEUScore(n_gram=4, smooth=True)
-        self.val_bleu = torchmetrics.text.BLEUScore(n_gram=4, smooth=True)
+        # Initialize BLEU score parameters
+        self.bleu_smoother = SmoothingFunction().method1
+        self.bleu_weights = (0.5, 0.5, 0.0, 0.0)  # Use only unigrams and bigrams
+        self.train_bleu_score = 0.0
+        self.val_bleu_score = 0.0
         
         # Define loss function with label smoothing
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.padding_value, 
@@ -81,14 +84,18 @@ class TransformerLightning(L.LightningModule):
         pred_tokens = y_hat.argmax(dim=-1).view(X_tgt.shape[0], -1)
         target_tokens = y.view(X_tgt.shape[0], -1)
         
-        # Use the stored tokenizer instead of accessing through trainer
+        # Decode sequences and split into tokens
         pred_seqs = [
-            self.tokenizer.decode_ids([t.item() for t in seq if t.item() != self.padding_value]).split()
+            self.tokenizer.decode(
+                [t.item() for t in seq if t.item() != self.padding_value]
+            ).split()  # Split into tokens after decoding
             for seq in pred_tokens
         ]
         
         target_seqs = [
-            self.tokenizer.decode_ids([t.item() for t in seq if t.item() != self.padding_value]).split()
+            self.tokenizer.decode(
+                [t.item() for t in seq if t.item() != self.padding_value]
+            ).split()  # Split into tokens after decoding
             for seq in target_tokens
         ]
         
@@ -112,13 +119,18 @@ class TransformerLightning(L.LightningModule):
         
         # Calculate metrics
         self.train_acc(y_hat, y)
-        # BLEU expects a list of predictions and a list of references
-        self.train_bleu(pred_seqs, [[t] for t in target_seqs])  # Each target needs to be in a list
+        
+        # Calculate average BLEU score - matching test implementation
+        scores = [
+            sentence_bleu([ref], hyp, weights=self.bleu_weights, smoothing_function=self.bleu_smoother)
+            for ref, hyp in zip(target_seqs, pred_seqs)
+        ]
+        self.train_bleu_score = sum(scores) / len(scores) if scores else 0.0
         
         # Log metrics
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log("train_acc", self.train_acc, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("train_bleu", self.train_bleu, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("train_bleu", self.train_bleu_score, on_step=True, on_epoch=True, prog_bar=True)
         
         return loss
     
@@ -139,13 +151,18 @@ class TransformerLightning(L.LightningModule):
         
         # Calculate metrics
         self.val_acc(y_hat, y)
-        # BLEU expects a list of predictions and a list of references
-        self.val_bleu(pred_seqs, [[t] for t in target_seqs])  # Each target needs to be in a list
+        
+        # Calculate average BLEU score - matching test implementation
+        scores = [
+            sentence_bleu([ref], hyp, weights=self.bleu_weights, smoothing_function=self.bleu_smoother)
+            for ref, hyp in zip(target_seqs, pred_seqs)
+        ]
+        self.val_bleu_score = sum(scores) / len(scores) if scores else 0.0
         
         # Log metrics
         self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log("val_acc", self.val_acc, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("val_bleu", self.val_bleu, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val_bleu", self.val_bleu_score, on_step=True, on_epoch=True, prog_bar=True)
         
         return loss
     
