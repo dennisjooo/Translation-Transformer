@@ -80,17 +80,20 @@ class SelfAttention(nn.Module):
         
         batch_size, seq_len, _ = q.size()
         
-        q = self.W_q(q).view(batch_size, -1, self.n_head, self.head_dim).transpose(1, 2)
-        k = self.W_k(k).view(batch_size, -1, self.n_head, self.head_dim).transpose(1, 2)
-        v = self.W_v(v).view(batch_size, -1, self.n_head, self.head_dim).transpose(1, 2)
+        # Fused reshape and permute operations
+        q = self.W_q(q).reshape(batch_size, -1, self.n_head, self.head_dim).permute(0, 2, 1, 3)
+        k = self.W_k(k).reshape(batch_size, -1, self.n_head, self.head_dim).permute(0, 2, 1, 3)
+        v = self.W_v(v).reshape(batch_size, -1, self.n_head, self.head_dim).permute(0, 2, 1, 3)
         
+        # Use PyTorch's optimized attention
         attention = F.scaled_dot_product_attention(
             q, k, v, 
             attn_mask=mask,
             dropout_p=self.dropout_p if self.training else 0.0
         )
         
-        attention = attention.contiguous().view(batch_size, seq_len, self.n_embed)
+        # Fused reshape for output
+        attention = attention.transpose(1, 2).reshape(batch_size, seq_len, self.n_embed)
         
         return self.output(attention)
 
@@ -104,13 +107,17 @@ class PositionalEncoding(nn.Module):
             max_len (int, optional): Maximum sequence length. Defaults to 5000.
         """
         super().__init__()
+        
+        # Pre-compute position encodings
         position = torch.arange(max_len).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
-        pe = torch.zeros(max_len, 1, d_model)
-        pe[:, 0, 0::2] = torch.sin(position * div_term)
-        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        
+        # Store in transposed form to avoid transpose operation in forward pass
+        pe = torch.zeros(1, max_len, d_model)
+        pe[0, :, 0::2] = torch.sin(position * div_term)
+        pe[0, :, 1::2] = torch.cos(position * div_term)
         self.register_buffer('pe', pe)
-
+        
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
@@ -118,7 +125,7 @@ class PositionalEncoding(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, d_model)
         """
-        return x + self.pe.transpose(0, 1)[:, :x.size(1)]
+        return x + self.pe[:, :x.size(1)]
 
 class EncoderBlock(nn.Module):
     def __init__(self, n_embed: int, n_head: int, n_hidden: int, dropout_p: float = 0.1):
@@ -150,11 +157,9 @@ class EncoderBlock(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, n_embed).
         """
-        x_norm = self.norm1(x)
-        x = x + self.attn(x_norm, x_norm, x_norm, mask=mask)  # Pass the mask
-        x_norm = self.norm2(x)
-        x = x + self.mlp(x_norm)
-        return self.dropout(x)
+        x = x + self.attn(self.norm1(x), self.norm1(x), self.norm1(x), mask=mask)
+        x = x + self.mlp(self.norm2(x))
+        return x
 
 class Encoder(nn.Module):
     def __init__(self, n_embed: int, n_head: int, n_hidden: int, n_layers: int, vocab_size: int, 
@@ -340,18 +345,19 @@ class Transformer(nn.Module):
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Source mask and target mask.
         """
-        # Create source padding mask
-        src_mask = (src != self.pad_idx).unsqueeze(1).unsqueeze(2)  # Shape: (batch_size, 1, 1, src_len)
-
-        # Create target padding mask
-        trg_pad_mask = (trg != self.pad_idx).unsqueeze(1).unsqueeze(2)  # Shape: (batch_size, 1, 1, trg_len)
+        # Create source padding mask more efficiently
+        src_mask = (src != self.pad_idx)[:, None, None, :]
         
-        # Create causal mask for decoder
-        seq_len = trg.size(1)
-        causal_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
-        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)  # Shape: (1, 1, seq_len, seq_len)
+        # Create target masks more efficiently
+        trg_pad_mask = (trg != self.pad_idx)[:, None, None, :]
         
-        # Combine padding and causal masks
-        trg_mask = trg_pad_mask & ~causal_mask.to(trg.device)
-
+        # Create causal mask once during initialization and cache it
+        if not hasattr(self, '_causal_mask') or self._causal_mask.size(2) < trg.size(1):
+            seq_len = trg.size(1)
+            causal_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool()
+            self._causal_mask = causal_mask[None, None, :, :].to(trg.device)
+        
+        # Use the cached causal mask
+        trg_mask = trg_pad_mask & ~self._causal_mask[:, :, :trg.size(1), :trg.size(1)]
+        
         return src_mask, trg_mask
