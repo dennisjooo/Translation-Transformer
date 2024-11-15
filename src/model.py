@@ -325,13 +325,15 @@ class Transformer(nn.Module):
         self.norm = nn.LayerNorm(n_embed)
         self.pad_idx = pad_idx
     
-    def forward(self, src: torch.Tensor, trg: torch.Tensor) -> torch.Tensor:
+    def forward(self, src: torch.Tensor, trg: torch.Tensor, use_cache=False, past_key_values=None) -> torch.Tensor:
         """
         Forward pass of the Transformer.
 
         Args:
             src (torch.Tensor): Source tensor of shape (batch_size, src_seq_len).
             trg (torch.Tensor): Target tensor of shape (batch_size, trg_seq_len).
+            use_cache (bool, optional): Whether to use cached KV states. Defaults to False.
+            past_key_values (Tuple[torch.Tensor, torch.Tensor], optional): Cached KV states. Defaults to None.
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, trg_seq_len, vocab_size).
@@ -343,7 +345,15 @@ class Transformer(nn.Module):
         dec_output = self.decoder(trg, enc_output, src_mask=src_mask, trg_mask=trg_mask)
         
         output = self.output(self.norm(dec_output))
-        return output
+        
+        if use_cache:
+            # Return both logits and updated KV cache
+            return output, {
+                'encoder_cache': enc_output,
+                'decoder_cache': dec_output
+            }
+        else:
+            return output
     
     
     def create_masks(self, src: torch.Tensor, trg: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
