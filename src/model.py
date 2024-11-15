@@ -152,14 +152,20 @@ class EncoderBlock(nn.Module):
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len, n_embed).
-            mask (torch.Tensor, optional): Attention mask tensor of shape (batch_size, 1, 1, seq_len). Defaults to None.
+            mask (torch.Tensor, optional): Attention mask tensor of shape (batch_size, 1, 1, seq_len).
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, n_embed).
         """
-        x = x + self.attn(self.norm1(x), self.norm1(x), self.norm1(x), mask=mask)
-        x = x + self.mlp(self.norm2(x))
-        return x
+        # Self-attention block with single pre-norm
+        norm_x = self.norm1(x)
+        x = x + self.attn(norm_x, norm_x, norm_x, mask=mask)
+        
+        # MLP block with pre-norm
+        norm_x = self.norm2(x)
+        x = x + self.mlp(norm_x)
+        
+        return self.dropout(x)
 
 class Encoder(nn.Module):
     def __init__(self, n_embed: int, n_head: int, n_hidden: int, n_layers: int, vocab_size: int, 
@@ -237,12 +243,18 @@ class DecoderBlock(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, n_embed).
         """
-        x_norm = self.norm1(x)
-        x = x + self.attn1(x_norm, x_norm, x_norm, mask=trg_mask)  # Pass target mask
-        x_norm = self.norm2(x)
-        x = x + self.attn2(x_norm, enc_output, enc_output, mask=src_mask)  # Pass source mask
-        x_norm = self.norm3(x)
-        x = x + self.mlp(x_norm)
+        # Self-attention block with single pre-norm
+        norm_x = self.norm1(x)
+        x = x + self.attn1(norm_x, norm_x, norm_x, mask=trg_mask)
+        
+        # Cross-attention block with pre-norm
+        norm_x = self.norm2(x)
+        x = x + self.attn2(norm_x, enc_output, enc_output, mask=src_mask)
+        
+        # MLP block with pre-norm
+        norm_x = self.norm3(x)
+        x = x + self.mlp(norm_x)
+        
         return self.dropout(x)
 
 class Decoder(nn.Module):

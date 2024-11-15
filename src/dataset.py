@@ -200,22 +200,23 @@ class DataModule(L.LightningDataModule):
         return DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, 
                           num_workers=self.num_workers, collate_fn=self.val_dataset.collate_fn)
         
-    def train_tokenizers(self, text_list: List[str], tokenizer_path: str) -> None:
+    def train_tokenizers(self, text_list: pd.Series, tokenizer_path: str) -> None:
         """
         Train a SentencePiece tokenizer.
 
         Args:
-            text_list (List[str]): List of texts to train on.
+            text_list (pd.Series): Series containing text data to train the tokenizer on
             tokenizer_path (str): Path to save the trained tokenizer.
         """
         tokenizer_path = tokenizer_path.split('.')[0]
         
         # Temporary file to write the string to
         with open('tmp.txt', 'w') as f:
-            # Write the data to the file in chunks of 5 entries per line
-            for i in range(0, len(text_list), 5):
-                chunk = text_list[i:i+5]
-                f.write('\t'.join(chunk.astype(str)) + '\n')
+            # Write the data to the file in chunks of 3 entries per line
+            for i in range(0, len(text_list), 3):
+                chunk = text_list.iloc[i:i+3]
+                chunk = chunk.astype(str)
+                f.write('\t'.join(chunk) + '\n')
             
         # Train the tokenizer
         spm.SentencePieceTrainer.train(input='tmp.txt', model_prefix=tokenizer_path, 
