@@ -28,11 +28,6 @@ class Sampler:
         self.alpha = 0.6  # Length penalty parameter
         self.n_gram_size = 3  # Size for n-gram repetition detection
         self.repetition_penalty_value = 0.7  # Penalty value for repetitions
-        self.kv_cache = None
-
-    def _reset_cache(self):
-        """Reset the KV cache."""
-        self.kv_cache = None
 
     def _prepare_initial_state(self, src: torch.Tensor, tgt: torch.Tensor = None) -> Tuple[torch.Tensor, int]:
         """
@@ -51,18 +46,12 @@ class Sampler:
         if src.numel() == 0:
             raise ValueError("Empty input tensor")
         
-        # Reset cache at the start of new sequence
-        self._reset_cache()
+        tgt = torch.tensor([[1]]).long().to(self.device) if tgt is None else tgt
         
-        # Initialize tgt with proper batch size
-        batch_size = src.size(0)
-        if tgt is None:
-            tgt = torch.full((batch_size, 1), 1, dtype=torch.long, device=self.device)
-        
+        # Get vocabulary size
         with torch.no_grad():
-            first_logits, cache = self.model(src, tgt, use_cache=True)
+            first_logits = self.model(src, tgt)
             vocab_size = first_logits.size(-1)
-            self.kv_cache = cache
             
         return tgt, vocab_size
 
@@ -133,7 +122,7 @@ class Sampler:
     def sample_random(self, src: torch.Tensor, tgt: torch.Tensor = None, top_n: int = None, 
                      temperature: float = 1.0) -> torch.Tensor:
         """
-        Generate using random sampling with KV caching.
+        Generate using random sampling.
         
         Args:
             src (torch.Tensor): Source sequence tensor
@@ -149,31 +138,17 @@ class Sampler:
         
         for _ in range(self.max_len):
             with torch.no_grad():
-                # Only pass the last token and use cached KV
-                last_token = tgt[:, -1:]
-                logits, new_cache = self.model(
-                    src,
-                    last_token,
-                    use_cache=True,
-                    past_key_values=self.kv_cache
-                )
-                self.kv_cache = new_cache
-                
-                # Apply temperature scaling
-                logits = self._apply_temperature(logits[:, -1], temperature)
+                logits = self._apply_temperature(self.model(src, tgt), temperature)
 
-                # Apply top-k filtering if specified
-                if top_n is not None:
-                    logits = logits.masked_fill(logits < torch.topk(logits, top_n)[0][..., -1, None], -1e9)
+            if top_n is not None:
+                logits = logits.masked_fill(logits < torch.topk(logits, top_n)[0][..., -1, None], -1e9)
 
-                # Sample from the distribution
-                pred = torch.multinomial(F.softmax(logits, dim=-1), 1)
-                tgt = torch.cat([tgt, pred], dim=1)
+            pred = torch.multinomial(F.softmax(logits[:, -1], dim=-1), 1)
+            tgt = torch.cat([tgt, pred], dim=1)
 
-                if (pred == self.end_token).all():
-                    break
+            if (pred == self.end_token).all():
+                break
 
-        self._reset_cache()  # Clear cache after generation
         return tgt.squeeze() if batch_size == 1 else tgt
 
     def sample_greedy(self, src: torch.Tensor, tgt: torch.Tensor = None) -> torch.Tensor:
@@ -192,23 +167,13 @@ class Sampler:
         
         for _ in range(self.max_len):
             with torch.no_grad():
-                # Only pass the last token and use cached KV
-                last_token = tgt[:, -1:]
-                logits, new_cache = self.model(
-                    src, 
-                    last_token,
-                    use_cache=True,
-                    past_key_values=self.kv_cache
-                )
-                self.kv_cache = new_cache
-                
+                logits = self.model(src, tgt)
                 pred = torch.argmax(logits[:, -1], dim=-1, keepdim=True)
                 tgt = torch.cat([tgt, pred], dim=1)
 
             if (pred == self.end_token).all():
                 break
 
-        self._reset_cache()  # Clear cache after generation
         return tgt.squeeze() if batch_size == 1 else tgt
 
     def _process_beam(self, src: torch.Tensor, beam: torch.Tensor, score: float,
@@ -281,27 +246,22 @@ class Sampler:
         tgt, vocab_size = self._prepare_initial_state(src, tgt)
         batch_size = src.size(0)
         
-        # Initialize beam states and caches
+        # Initialize beam states
         batch_beams = [[(tgt, 0)] for _ in range(batch_size)]
         batch_beam_n_grams = [[set() for _ in range(beam_size)] for _ in range(batch_size)]
-        batch_beam_caches = [[self.kv_cache] for _ in range(batch_size)]
         candidates_per_beam = min(beam_size * 2, vocab_size - 1)
         
         for step in range(self.max_len - 1):
             batch_new_beams = []
-            batch_new_caches = []
             
             for batch_idx in range(batch_size):
                 new_beams = []
-                new_caches = []
                 beams = batch_beams[batch_idx]
                 beam_n_grams = batch_beam_n_grams[batch_idx]
-                beam_caches = batch_beam_caches[batch_idx]
                 
-                for beam_idx, ((beam, score), beam_cache) in enumerate(zip(beams, beam_caches)):
+                for beam_idx, (beam, score) in enumerate(beams):
                     if beam[0, -1].item() == self.end_token and step > 0:
                         new_beams.append((beam, score))
-                        new_caches.append(beam_cache)
                         continue
                         
                     candidates = self._process_beam(
@@ -310,17 +270,16 @@ class Sampler:
                         vocab_size, temperature, diversity_penalty
                     )
                     new_beams.extend(candidates)
-                    new_caches.extend([beam_cache] * len(candidates))
                 
-                # Sort and keep top beams with their caches
-                sorted_pairs = sorted(zip(new_beams, new_caches), 
-                                      key=lambda x: x[0][1], reverse=True)[:beam_size]
-                batch_new_beams.append([pair[0] for pair in sorted_pairs])
-                batch_new_caches.append([pair[1] for pair in sorted_pairs])
+                # Sort and keep top beams
+                batch_new_beams.append(sorted(new_beams, key=lambda x: x[1], reverse=True)[:beam_size])
             
-            batch_beams = batch_new_beams
-            batch_beam_n_grams = batch_new_beams
-            batch_beam_caches = batch_new_caches
+            # Update beams and n-grams
+            for batch_idx in range(batch_size):
+                batch_beams[batch_idx] = batch_new_beams[batch_idx]
+                for i, (beam, _) in enumerate(batch_beams[batch_idx]):
+                    tokens = beam.squeeze().tolist()
+                    batch_beam_n_grams[batch_idx][i] = self._get_n_grams(tokens)
             
             # Early stopping check
             if all(all(beam[0, -1].item() == self.end_token for beam, _ in beams) 
