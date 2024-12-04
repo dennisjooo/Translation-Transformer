@@ -57,7 +57,7 @@ class TransformerLightning(L.LightningModule):
         
         # Define loss function with label smoothing
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.padding_value, 
-                                             label_smoothing=0.1)
+                                             label_smoothing=0.15)
         
     def _shared_step(self, batch: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], 
                      batch_idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[List[str]], List[List[str]]]:
@@ -74,6 +74,11 @@ class TransformerLightning(L.LightningModule):
         """
         X_src, X_tgt, y = batch
         y_hat = self.model(X_src, X_tgt)
+        
+        # Apply temperature scaling to logits
+        temperature = 1.2  # Slightly higher temperature for more diversity
+        y_hat = y_hat / temperature
+        
         y_hat = y_hat.view(-1, y_hat.size(-1))
         y = y.view(-1)
         

@@ -27,7 +27,7 @@ class Sampler:
         self.end_token = 2
         self.alpha = 0.6  # Length penalty parameter
         self.n_gram_size = 3  # Size for n-gram repetition detection
-        self.repetition_penalty_value = 0.7  # Penalty value for repetitions
+        self.repetition_penalty_value = 0.5  # Increased penalty for repetitions (lower value = stronger penalty)
 
     def _prepare_initial_state(self, src: torch.Tensor, tgt: torch.Tensor = None) -> Tuple[torch.Tensor, int]:
         """
